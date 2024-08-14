@@ -6,12 +6,22 @@
 //
 
 import SwiftUI
+import SwiftData
 
 @main
 struct RemindMeToDrinkApp: App {
+    
+    let container: ModelContainer = {
+        let schema = Schema([UserDataModel.self, DrinkEntriesModel.self])
+        let container = try! ModelContainer(for: schema, configurations: [])
+        return container
+    }()
+    
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            StartView()
+                .modelContainer(for: [UserDataModel.self, DrinkEntriesModel.self])
+
         }
     }
 }
