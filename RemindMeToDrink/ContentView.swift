@@ -7,6 +7,7 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct StartView: View {
     @State var showInfo = false
@@ -98,10 +99,43 @@ struct StartView: View {
                         }
                 }
             }
-            
+            .onAppear {
+                requestNotificationPermission()
+                scheduleWaterReminder()
+            }
         }
         .sheet(isPresented: $showInfo) {
             SettingsView(userData: $userData, showInfo: $showInfo)
+        }
+    }
+    func requestNotificationPermission() {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+                if granted {
+                    print("Permission granted for notifications.")
+                } else {
+                    print("Permission denied for notifications.")
+                }
+            }
+        }
+        
+    func scheduleWaterReminder() {
+        let content = UNMutableNotificationContent()
+        content.title = "Stay Hydrated!"
+        content.body = "Please don't forget to drink water."
+        content.sound = UNNotificationSound.default
+        
+        // 30-Minuten-Intervall konfigurieren
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1800, repeats: true)
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: trigger)
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling notification: \(error.localizedDescription)")
+            }
         }
     }
 }
@@ -291,10 +325,9 @@ struct DrinkEntryView: View {
 struct HistoryView: View {
     @Environment(\.modelContext) var modelContext
     @Query(sort: \DrinkEntriesModel.date, order: .reverse) var drinks: [DrinkEntriesModel]
-    var totalDrink: Double {
-            drinks.reduce(0) { $0 + $1.drinkAmount }
-        }
-
+    @State private var selectedDate: Date = Date()  // Standardmäßig auf das aktuelle Datum gesetzt
+    @State private var totalDrinkAmount: Double = 0.0
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -314,43 +347,70 @@ struct HistoryView: View {
                                 Text("Total drink in L")
                                     .font(.headline)
                                     .foregroundStyle(.black)
-                                Text("\(totalDrink, specifier: "%.1f")")
+                                Text("\(totalDrinkAmount, specifier: "%.1f")")
                             }
                         )
                         .padding()
-                    List(drinks) { drink in
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text("\(drink.drinkType)")
-                                    .font(.headline)
-                                Text("Amount: \(drink.drinkAmount, specifier: "%.1f") L")
-                                    .font(.subheadline)
-                                Text("Date: \(formattedDate(drink.date))")
-                                    .font(.subheadline)
-                                    .foregroundColor(.gray)
-                            }
+
+                    DatePicker("Select a date", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                        .padding()
+                        .background(Color.white.opacity(0.8))
+                        .cornerRadius(10)
+                        .shadow(radius: 10)
+                        .padding()
+
+                    List(drinksForDay(selectedDate)) { drink in
+                        VStack(alignment: .leading) {
+                            Text(drink.drinkType)
+                                .font(.headline)
+                            Text("Amount: \(drink.drinkAmount, specifier: "%.1f") L")
+                                .font(.subheadline)
+                            Text("Time: \(formattedDate(drink.date, withTime: true))")
+                                .font(.caption)
+                                .foregroundColor(.gray)
                         }
                     }
                     .listStyle(PlainListStyle())
+                    .cornerRadius(10)
                     .padding()
 
                 }
             }
             .navigationTitle("Drink History")
+            .onAppear {
+                updateTotalDrinkAmount()
+            }
+            .onChange(of: selectedDate) { _ , _ in
+                updateTotalDrinkAmount()
+            }
         }
     }
 
-    // Hilfsfunktion zum Formatieren des Datums
-    private func formattedDate(_ date: Date) -> String {
+    private func updateTotalDrinkAmount() {
+        totalDrinkAmount = drinksForDay(selectedDate).reduce(0) { $0 + $1.drinkAmount }
+    }
+    
+    private func drinksForDay(_ day: Date) -> [DrinkEntriesModel] {
+        let calendar = Calendar.current
+        return drinks.filter { calendar.isDate($0.date, inSameDayAs: day) }
+    }
+
+    private func formattedDate(_ date: Date, withTime: Bool = false) -> String {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
+        formatter.dateStyle = .full
+        if withTime {
+            formatter.timeStyle = .short
+        }
         return formatter.string(from: date)
     }
 }
 
+
 #Preview {
-    //StartView()
-    HistoryView()
+    StartView()
         .modelContainer(for: [DrinkEntriesModel.self])
+    /*HistoryView()
+        .modelContainer(for: [DrinkEntriesModel.self])
+     */
 }
