@@ -177,9 +177,9 @@ struct SettingsView: View {
                                 }
                             }
                             HStack {
-                                TextField("Age", value: $userData.age, format: .number)
+                                TextField("Age", value: $userData.age, formatter: NumberFormatter())
                                     .keyboardType(.numberPad)
-                                TextField("Weight(KG)", value: $userData.weight, format: .number)
+                                TextField("Weight(KG)", value: $userData.weight, formatter: NumberFormatter())
                                     .keyboardType(.decimalPad)
                             }
                         }
@@ -331,7 +331,9 @@ struct HistoryView: View {
     var body: some View {
         NavigationView {
             ZStack {
-                Color.blue.opacity(0.3).ignoresSafeArea()
+                Color.blue.opacity(0.3)
+                    .ignoresSafeArea()
+                
                 VStack {
                     RoundedRectangle(cornerRadius: 20)
                         .fill(Color.white.opacity(0.8))
@@ -351,7 +353,7 @@ struct HistoryView: View {
                             }
                         )
                         .padding()
-
+                    
                     DatePicker("Select a date", selection: $selectedDate, displayedComponents: .date)
                         .datePickerStyle(.compact)
                         .padding()
@@ -359,22 +361,29 @@ struct HistoryView: View {
                         .cornerRadius(10)
                         .shadow(radius: 10)
                         .padding()
-
-                    List(drinksForDay(selectedDate)) { drink in
-                        VStack(alignment: .leading) {
-                            Text(drink.drinkType)
-                                .font(.headline)
-                            Text("Amount: \(drink.drinkAmount, specifier: "%.1f") L")
-                                .font(.subheadline)
-                            Text("Time: \(formattedDate(drink.date, withTime: true))")
-                                .font(.caption)
-                                .foregroundColor(.gray)
+                    
+                    List {
+                        ForEach(drinksForDay(selectedDate)) { drink in
+                            VStack(alignment: .leading) {
+                                Text(drink.drinkType)
+                                    .font(.headline)
+                                Text("Amount: \(drink.drinkAmount, specifier: "%.1f") L")
+                                    .font(.subheadline)
+                                Text("Time: \(formattedDate(drink.date, withTime: true))")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                         }
+                        .onDelete { IndexSet in
+                            deleteDrink(at: IndexSet)
+                            
+                        }
+                        .listStyle(PlainListStyle())
+                        .cornerRadius(10)
+                        .padding()
+                        
                     }
-                    .listStyle(PlainListStyle())
-                    .cornerRadius(10)
-                    .padding()
-
+                    .scrollContentBackground(.hidden)
                 }
             }
             .navigationTitle("Drink History")
@@ -386,7 +395,7 @@ struct HistoryView: View {
             }
         }
     }
-
+    
     private func updateTotalDrinkAmount() {
         totalDrinkAmount = drinksForDay(selectedDate).reduce(0) { $0 + $1.drinkAmount }
     }
@@ -395,7 +404,7 @@ struct HistoryView: View {
         let calendar = Calendar.current
         return drinks.filter { calendar.isDate($0.date, inSameDayAs: day) }
     }
-
+    
     private func formattedDate(_ date: Date, withTime: Bool = false) -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
@@ -404,13 +413,22 @@ struct HistoryView: View {
         }
         return formatter.string(from: date)
     }
+    private func deleteDrink(at indexSet: IndexSet) {
+        let drinksForSelectedDay = drinksForDay(selectedDate)
+        indexSet.forEach { index in
+            let drinkToDelete = drinksForSelectedDay[index]
+            modelContext.delete(drinkToDelete)
+        }
+        try? modelContext.save()
+        updateTotalDrinkAmount()
+    }
 }
 
 
 #Preview {
-    StartView()
+    //StartView()
+    //    .modelContainer(for: [DrinkEntriesModel.self])
+    HistoryView()
         .modelContainer(for: [DrinkEntriesModel.self])
-    /*HistoryView()
-        .modelContainer(for: [DrinkEntriesModel.self])
-     */
+    
 }
