@@ -13,7 +13,7 @@ struct StartView: View {
     @State var showInfo = false
     @State private var showDrinkEntry = false
     @State private var waterConsumed: Double = 0.0
-    @State private var userData = UserData(name: "", surname: "", age: 0, gender: "", weight: 0.0, drinkAmount: 0.0, additionalWaterForCaffeine: 0.0)
+    @State private var userData = UserData(gender: "", drinkAmount: 0.0, additionalWaterForCaffeine: 0.0)
     @Environment(\.modelContext) var modelContext
     @Query private var user: [UserDataModel]
     
@@ -109,28 +109,41 @@ struct StartView: View {
         }
     }
     func requestNotificationPermission() {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-                if granted {
-                    print("Permission granted for notifications.")
-                } else {
-                    print("Permission denied for notifications.")
-                }
-            }
+           UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+               if granted {
+                   print("Permission granted for notifications.")
+               } else {
+                   print("Permission denied for notifications.")
+               }
+           }
+       }
+       
+    func scheduleWaterReminder() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        
+        let currentDate = Date()
+        let calendar = Calendar.current
+        
+        let startTime = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: currentDate)!
+        let endTime = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: currentDate)!
+        
+        guard currentDate >= startTime && currentDate <= endTime else {
+            return
         }
         
-    func scheduleWaterReminder() {
         let content = UNMutableNotificationContent()
         content.title = "Stay Hydrated!"
         content.body = "Please don't forget to drink water."
         content.sound = UNNotificationSound.default
         
         // 30-Minuten-Intervall konfigurieren
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1800, repeats: true)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: true)
         
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,
             content: content,
-            trigger: trigger)
+            trigger: trigger
+        )
         
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
@@ -138,6 +151,7 @@ struct StartView: View {
             }
         }
     }
+
 }
 
 struct SettingsView: View {
@@ -146,7 +160,11 @@ struct SettingsView: View {
     @Environment(\.modelContext) var modelContext
     @Query private var user: [UserDataModel]
     let genders = ["Male", "Female"]
-
+    
+    // Zum Konfigurieren der Benachrichtigunszeit
+    @State private var selectedStartTime: Date = Date()
+    @State private var selectedEndTime: Date =  Date()
+    
     
     var body: some View {
         NavigationView {
@@ -154,23 +172,22 @@ struct SettingsView: View {
                 Color.blue.opacity(0.3).ignoresSafeArea()
                 
                 VStack {
-                    Image(systemName: "person.circle.fill")
+                    Text("Settings")
+                        .frame(alignment: .center)
+                        .font(.largeTitle)
+                        .bold()
+                        .padding(.vertical, 10)
+                    
+                    Image(systemName: "gear")
                         .resizable()
-                        .frame(width: 100, height: 100)
-                        .clipShape(Circle())
-                        .overlay(
-                            Circle().stroke(
-                                Color.white,
-                                lineWidth: 4
-                            )
-                        )
-                        .padding(.top, 100)
+                        .frame(width: 50, height: 50)
+                        .padding(.top, 20)
+                    Text("This information is used to calculate your daily water intake.")
+                        .padding()
+                        .font(.footnote)
+                        .foregroundStyle(.gray)
                     Form {
                         Section(header: Text("Personal Information")) {
-                            HStack {
-                                TextField("Name", text: $userData.name)
-                                TextField("Surname", text: $userData.surname)
-                            }
                             Picker("Gender", selection: $userData.gender) {
                                 ForEach(genders, id: \.self) {
                                     Text($0)
@@ -179,14 +196,15 @@ struct SettingsView: View {
                             HStack {
                                 TextField("Age", value: $userData.age, formatter: NumberFormatter())
                                     .keyboardType(.numberPad)
+                                
                                 TextField("Weight(KG)", value: $userData.weight, formatter: NumberFormatter())
                                     .keyboardType(.decimalPad)
                             }
                         }
-                        .listRowBackground(Color.clear)
-                        .foregroundStyle(.white)
-                        
-                        
+                        Section(header: Text("Notification Settings")) {
+                            DatePicker("Start Time", selection: $selectedStartTime, displayedComponents: .hourAndMinute)
+                            DatePicker("End Time", selection: $selectedEndTime, displayedComponents: .hourAndMinute)
+                        }
                     }
                     .scrollContentBackground(.hidden)
                     .scrollDisabled(true)
@@ -194,6 +212,8 @@ struct SettingsView: View {
                     
                     Button("Save") {
                         save()
+                        saveNotificationSettings(startTime: selectedStartTime, endTime: selectedEndTime)
+                        scheduleWaterReminder()
                     }
                     .padding()
                     .background(Color.blue)
@@ -202,12 +222,96 @@ struct SettingsView: View {
                     .padding(.horizontal)
                 }
             }
+            .onAppear {
+                loadSettings()
+            }
         }
     }
+    func saveNotificationSettings(startTime: Date, endTime: Date) {
+        let defaults = UserDefaults.standard
+        defaults.set(startTime, forKey: "NotificationStartTime")
+        defaults.set(endTime, forKey: "NotificationEndTime")
+    }
+    
+    func loadSettings() {
+        let settings = loadNotificationSettings()
+        if let startTime = settings.startTime {
+            selectedStartTime = startTime
+        }
+        if let endTime = settings.endTime {
+            selectedEndTime = endTime
+        }
+        
+        let defaults = UserDefaults.standard
+        
+        if let gender = defaults.string(forKey: "UserGender") {
+            userData.gender = gender
+        }
+        userData.age = defaults.integer(forKey: "UserAge")
+        userData.weight = defaults.double(forKey: "UserWeight")
+        userData.drinkAmount = defaults.double(forKey: "UserDrinkAmount")
+        userData.additionalWaterForCaffeine = defaults.double(forKey: "UserAdditionalWaterForCaffeine")
+        
+    }
+    
+    func loadNotificationSettings() -> (startTime: Date?, endTime: Date?) {
+        let defaults = UserDefaults.standard
+        let startTime = defaults.object(forKey: "NotificationStartTime") as? Date
+        let endTime = defaults.object(forKey: "NotificationEndTime") as? Date
+        return (startTime, endTime)
+    }
+    
+    // Funktion zum Planen der Erinnerung
+    func scheduleWaterReminder() {
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        
+        let currentDate = Date()
+        
+        let settings = loadNotificationSettings()
+        guard let startTime = settings.startTime, let endTime = settings.endTime else {
+            return
+        }
+        
+        guard currentDate >= startTime && currentDate <= endTime else {
+            return
+        }
+        
+        let content = UNMutableNotificationContent()
+        content.title = "Stay Hydrated!"
+        content.body = "Please don't forget to drink water."
+        content.sound = UNNotificationSound.default
+        
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1800, repeats: true)
+        
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: trigger
+        )
+        
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling notification: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     func save() {
-        let userSet = UserDataModel(name: userData.name, surname: userData.surname, age: userData.age, gender: userData.gender, weight: userData.weight, drinkAmount: userData.drinkAmount, additionalWaterForCaffeine: userData.additionalWaterForCaffeine)
+        let defaults = UserDefaults.standard
+                defaults.set(userData.gender, forKey: "UserGender")
+                defaults.set(userData.age, forKey: "UserAge")
+                defaults.set(userData.weight, forKey: "UserWeight")
+                defaults.set(userData.drinkAmount, forKey: "UserDrinkAmount")
+                defaults.set(userData.additionalWaterForCaffeine, forKey: "UserAdditionalWaterForCaffeine")
+
+        let userSet = UserDataModel(age: userData.age ?? 0, gender: userData.gender, weight: userData.weight ?? 0.0, drinkAmount: userData.drinkAmount, additionalWaterForCaffeine: userData.additionalWaterForCaffeine)
         modelContext.insert(userSet)
-        try? modelContext.save()
+        
+        do {
+            try modelContext.save()
+        } catch {
+            print("Error saving user data: \(error.localizedDescription)")
+        }
         showInfo.toggle()
     }
 }
@@ -426,9 +530,10 @@ struct HistoryView: View {
 
 
 #Preview {
-    //StartView()
+    
+    StartView()
+       .modelContainer(for: [DrinkEntriesModel.self])
+    //HistoryView()
     //    .modelContainer(for: [DrinkEntriesModel.self])
-    HistoryView()
-        .modelContainer(for: [DrinkEntriesModel.self])
     
 }
