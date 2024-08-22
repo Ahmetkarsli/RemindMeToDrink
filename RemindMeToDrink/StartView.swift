@@ -44,37 +44,42 @@ struct StartView: View {
                         )
                         .frame(width: 350, height: 200)
                         .overlay(
-                            VStack(alignment: .leading) {
-                                Section(header: Text("Today's Water Intake")) {
-                                    
-                                    Text("Consumed: \(userDrinkAmount, specifier: "%.1f") Liters")
-                                        .font(.title2)
-                                        .foregroundColor(.black)
-                                        .padding(.top, 10)
-                                    HStack {
-                                        Text("Daily Goal: \(userDailyGoal, specifier: "%.1f")")
+                            NavigationLink(destination: HistoryView(totalDrinkAmount: $userDrinkAmount)) {
+                                VStack(alignment: .leading) {
+                                    Section(header: Text("Today's Water Intake")) {
+                                        
+                                        Text("Consumed: \(userDrinkAmount, specifier: "%.1f") Liters")
+                                            .font(.title2)
+                                            .foregroundColor(.black)
+                                            .padding(.top, 10)
+                                        HStack {
+                                            Text("Daily Goal: \(userDailyGoal, specifier: "%.1f")")
                                             
-                                        Image(systemName: "info.circle")
-                                            .foregroundStyle(.blue)
-                                            .onTapGesture {
-                                                showDailyInfo.toggle()
-                                            }
-                                    }
-                                    .font(.title2)
-                                    .foregroundColor(.black)
-                                    .padding(.top, 10)
-                                    
-                                    Text("Difference: \(userDifference, specifier: "%.1f")")
+                                            Image(systemName: "info.circle")
+                                                .foregroundStyle(.blue)
+                                                .onTapGesture {
+                                                    showDailyInfo.toggle()
+                                                }
+                                        }
                                         .font(.title2)
                                         .foregroundColor(.black)
                                         .padding(.top, 10)
+                                        
+                                        Text("Difference: \(userDifference, specifier: "%.1f")")
+                                            .font(.title2)
+                                            .padding(.top, 10)
+                                        
+                                    }
                                     
                                     Spacer()
                                 }
-                            }
                                 .padding()
+                            }
+                            
                         )
                         .padding(.top, 40)
+                        .foregroundColor(.black)
+
                     Spacer()
                     
                     Button {
