@@ -27,3 +27,12 @@ class DrinkEntriesModel {
         self.date = date
     }
 }
+
+class DrinkDataViewModel: ObservableObject {
+    @Published var drinks: [DrinkEntriesModel] = []
+    
+    func updateTotalDrinkAmount(for date: Date) {
+        let calendar = Calendar.current
+        drinks = drinks.filter { calendar.isDate($0.date, inSameDayAs: date) }
+    }
+}

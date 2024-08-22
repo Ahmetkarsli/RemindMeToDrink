@@ -10,17 +10,23 @@ import SwiftData
 import UserNotifications
 
 struct StartView: View {
+    @StateObject private var drinkData = DrinkDataViewModel()
     @State var showInfo = false
+    @State private var showDailyInfo = false
     @State var showDrinkEntry = false
-    @State private var waterConsumed: Double = 0.0
     @Environment(\.modelContext) var modelContext
     @State var caffeinated = false
+    @State var caffeinatedDrink: Double = 0.0
+    @State var dailyGoal: Double = 0.0
     
     // Daten die gespeichert werden
     @AppStorage("userAge") var userAge: Int = 0
     @AppStorage("userGender") var userGender: String = ""
     @AppStorage("userWeight") var userWeight: Double = 0.0
     @AppStorage("userDrinkAmount") var userDrinkAmount: Double = 0.0
+    @AppStorage("caffeinatedIntake") var caffeinatedIntake: Double = 0.0
+    @AppStorage("userDailyGoal") var userDailyGoal: Double = 0.0
+    @AppStorage("userDifference") var userDifference: Double = 0.0
         
     var body: some View {
         NavigationView {
@@ -41,19 +47,24 @@ struct StartView: View {
                             VStack(alignment: .leading) {
                                 Section(header: Text("Today's Water Intake")) {
                                     
-                                    let drinkDetails = calculateDrinkDetails(weight: userWeight, drinkAmount: userDrinkAmount)
-                                    
                                     Text("Consumed: \(userDrinkAmount, specifier: "%.1f") Liters")
                                         .font(.title2)
                                         .foregroundColor(.black)
                                         .padding(.top, 10)
+                                    HStack {
+                                        Text("Daily Goal: \(userDailyGoal, specifier: "%.1f")")
+                                            
+                                        Image(systemName: "info.circle")
+                                            .foregroundStyle(.blue)
+                                            .onTapGesture {
+                                                showDailyInfo.toggle()
+                                            }
+                                    }
+                                    .font(.title2)
+                                    .foregroundColor(.black)
+                                    .padding(.top, 10)
                                     
-                                    Text("Daily Goal: \(drinkDetails.needToDrink, specifier: "%.1f")")
-                                        .font(.title2)
-                                        .foregroundColor(.black)
-                                        .padding(.top, 10)
-                                    
-                                    Text("Difference: \(drinkDetails.drinkDifference, specifier: "%.1f")")
+                                    Text("Difference: \(userDifference, specifier: "%.1f")")
                                         .font(.title2)
                                         .foregroundColor(.black)
                                         .padding(.top, 10)
@@ -82,10 +93,10 @@ struct StartView: View {
                         DrinkEntryView(
                             modelContext: _modelContext,
                             isDrinkEntry: $showDrinkEntry,
-                            drinkAmount: $waterConsumed,
-                            drinking: waterConsumed, // oder ein anderer State-Wert, der passend ist
+                            drinkAmount: $userDrinkAmount,
                             drinkType: "Water", // oder ein anderer Standardwert
-                            caffeinated: $caffeinated
+                            caffeinated: $caffeinated,
+                            caffeinatedDrink: $caffeinatedIntake
                         )
                         .transition(.move(edge: .bottom))
                         .ignoresSafeArea()
@@ -112,8 +123,14 @@ struct StartView: View {
                 }
             }
             .onAppear {
+                calculateDrinkDetails(weight: userWeight, drinkAmount: userDrinkAmount, caffeinatedDrink: caffeinatedDrink, gender: userGender)
+                drinkData.updateTotalDrinkAmount(for: Date())
                 requestNotificationPermission()
                 scheduleWaterReminder()
+                
+            }
+            .onChange(of: userDrinkAmount) { _, _ in
+                calculateDrinkDetails(weight: userWeight, drinkAmount: userDrinkAmount, caffeinatedDrink: caffeinatedDrink, gender: userGender)
             }
         }
         .sheet(isPresented: $showInfo) {
@@ -131,13 +148,30 @@ struct StartView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+        .alert(isPresented: $showDailyInfo) {
+            Alert(
+                title: Text("Information"),
+                message: Text("Your DailyGoal is \(dailyGoal, specifier: "%.1f") Liters, but with the intake of Caffeine your Daily Goal changes."),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
     
-    func calculateDrinkDetails(weight: Double, drinkAmount: Double) -> (needToDrink: Double, drinkDifference: Double) {
-        let baseDailyGoal = weight * 0.033  // Basis-Tagesziel (Zufallswert: 33ml pro kg)
-        let totalDailyGoal = baseDailyGoal
-        let difference = totalDailyGoal - drinkAmount
-        return (needToDrink: totalDailyGoal, drinkDifference: difference)
+    func calculateDrinkDetails(weight: Double, drinkAmount: Double, caffeinatedDrink: Double, gender: String) {
+        let baseDailyGoal: Double
+        
+        switch gender.lowercased() {
+        case "male":
+            baseDailyGoal = weight * 0.040  // 40ml pro KG bei Männer
+        case "female":
+            baseDailyGoal = weight * 0.030  // 30ml bei Frauen
+        default:
+            baseDailyGoal = weight * 0.033  // Standardwert
+        }
+        
+        dailyGoal = baseDailyGoal
+        userDailyGoal = baseDailyGoal + caffeinatedIntake
+        userDifference = userDailyGoal - drinkAmount
     }
     
     func requestNotificationPermission() {
@@ -169,7 +203,7 @@ struct StartView: View {
         content.sound = UNNotificationSound.default
         
         // 30-Minuten-Intervall konfigurieren
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 60, repeats: true)
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1800, repeats: true)
         
         let request = UNNotificationRequest(
             identifier: UUID().uuidString,

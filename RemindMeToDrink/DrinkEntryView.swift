@@ -14,14 +14,15 @@ struct DrinkEntryView: View {
     @State var drinking: Double = 0.0
     @State var drinkType: String = "Water"
     @Binding var caffeinated: Bool
+    @Binding var caffeinatedDrink: Double
     
     private var numberFormatter: NumberFormatter {
-            let formatter = NumberFormatter()
-            formatter.numberStyle = .decimal
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-            return formatter
-        }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 2
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }
     
     private let caffeinatedDrinks = [
         "cola",
@@ -43,15 +44,13 @@ struct DrinkEntryView: View {
         "Iced Tea",
         "Sports Drink"
     ]
-
     
     var body: some View {
-        
         VStack {
             Text("Enter Drink Details")
                 .font(.headline)
-                 .padding()
-                         
+                .padding()
+            
             HStack {
                 VStack(alignment: .leading) {
                     Section {
@@ -62,6 +61,7 @@ struct DrinkEntryView: View {
                             .font(.caption)
                     }
                 }
+                
                 VStack {
                     Section {
                         Picker("Drink", selection: $drinkType) {
@@ -81,14 +81,12 @@ struct DrinkEntryView: View {
             .padding(.horizontal)
             
             Button("Add") {
-                // Handle the drink amount addition
+
                 if caffeinatedDrinks.contains(drinkType.lowercased()) {
                     caffeinated = true
-                    
-                }
-                if caffeinated {
-                    
-                    drinkAmount += drinking
+                    caffeinatedDrink = drinking
+                } else {
+                    caffeinatedDrink = 0.0
                 }
                 drinkAmount += drinking
                 
